@@ -6,23 +6,36 @@ clearTmp(){
   cd tmp
 }
 
+clearDBs(){
+  mongo pophealth-development --eval "db.dropDatabase()"
+  mongo cypress_development --eval "db.dropDatabase()"
+}
+
 cloneCypress(){
   echo -----Begin clone Cypress---------
   git clone https://github.com/projectcypress/cypress.git
   cd cypress
   git checkout develop
   bundle install
+  cd ..
+  echo -----End clone Cypress---------
+}
 
+setupCypress(){
+  echo -----Begin setup Cypress---------
   #export patient zip, unzip it
+  cd cypress
   export DB_NAME=cypress_development
-  echo $DB_NAME
   cp -r ../../json/ db/master_patient_list/
   bundle exec rake mpl:install
   bundle exec rake mpl:create_populations
-  bundle exec rake test:round_trip:export_zip[../patients_c32.zip]
-  unzip -d ../patients_c32 ../patients_c32.zip
+  if $1
+  then
+    bundle exec rake test:round_trip:export_zip[../patients_c32.zip]
+    unzip -d ../patients_c32 ../patients_c32.zip
+  fi
   cd ..
-  echo -----End clone Cypress---------
+  echo -----End setup Cypress---------
 }
 
 clonePopHealth(){
@@ -41,12 +54,19 @@ cloneMeasures(){
   cd measures
   git checkout develop
   bundle install
+  cd ..
+  echo -----End clone Measures--------
+}
+
+loadMeasures(){
+  echo -----Begin load Measures---------
+  cd measures
   export DB_NAME=pophealth-development
   bundle exec rake mongo:reload_bundle
   export DB_NAME=cypress_development
   bundle exec rake mongo:reload_bundle
   cd ..
-  echo -----End clone Measures--------
+  echo -----End load Measures--------
 }
 
 generatePQRI(){
@@ -54,9 +74,10 @@ generatePQRI(){
   cd popHealth
   export DB_NAME=pophealth-development
   bundle exec rake import:patients[../patients_c32/,true] --trace
-  bundle exec rake pqri:report[1293670800] #12/30
+  #bundle exec rake pqri:report[1293670800] #12/30
   #bundle exec rake pqri:report[1293584400] #12/29
   #bundle exec rake pqri:report[1293757200] #12/31
+  bundle exec rake pqri:report[1293685200] #cypress
   cd ..
   echo -----End generate PQRI ---------
 }
@@ -73,15 +94,21 @@ validatePQRI(){
 
 fullRoundtrip(){
  clearTmp
+ clearDBs
  cloneCypress
+ setupCypress true
  clonePopHealth
  cloneMeasures
+ loadMeasures
  generatePQRI
  validatePQRI
 }
 
 quickRoundtrip(){
  cd tmp
+ clearDBs
+ loadMeasures
+ setupCypress false
  generatePQRI
  validatePQRI
 }
